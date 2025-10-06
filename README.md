@@ -1,142 +1,148 @@
-# 🤖 AI-Powered Samsung Refrigerator Support Chatbot
+# AI-Powered Samsung Refrigerator Support Chatbot
 
 This project is a smart, interactive chatbot designed to help users troubleshoot issues with their Samsung refrigerators. It leverages modern AI and machine learning models to provide accurate, context-aware support through both text-based conversation and image analysis.
 
-<!-- Replace with an actual GIF of your chatbot in action -->
+![Chatbot Demo](https://placehold.co/600x400/EEE/31343C?text=Replace+with+GIF+of+your+chatbot)
+---
 
-------------------------------------------------------------
+## ✨ Features
 
-✨ Features
+* **🤖 Conversational AI:** Engage in natural, human-like conversations to diagnose problems.
+* **📚 RAG-Powered Knowledge:** Provides answers based on an official Samsung refrigerator user manual for high accuracy.
+* **📸 Image-Based Troubleshooting:** Upload a photo of a refrigerator part or error code, and the AI will identify it and provide guidance.
+* **🧠 Intelligent Model Integration:** Uses powerful models like `Mistral-7B` for generation and `BLIP` for visual question answering.
+* **⚡ Fast and Scalable:** Built with a lightweight Flask backend and vectorized storage using Pinecone for quick document retrieval.
+* **🌐 Simple Web Interface:** Easy-to-use interface for seamless user interaction.
 
-- Conversational Q&A: Ask troubleshooting questions in natural language and get clear, step-by-step solutions.
-- Knowledge-Based Answers: The chatbot uses a Retrieval-Augmented Generation (RAG) pipeline, ensuring all answers are grounded in the official Samsung user manual.
-- Visual Diagnostics (VQA): Upload a photo of your refrigerator, and the AI will analyze the image to identify potential issues and recommend actions.
-- Interactive Web Interface: A clean and user-friendly chat interface for a seamless user experience.
+---
 
-------------------------------------------------------------
-
-🛠️ How It Works
+## 🛠️ How It Works
 
 The application is built with a Python Flask backend and a simple HTML/CSS/JS frontend. It has two primary modes of operation:
 
-1. Text-Based Queries (RAG)
-   - Embedding: The user's query is converted into a vector embedding.
-   - Retrieval: The system searches a Pinecone vector database to find the most relevant text chunks from the ingested Samsung product manual.
-   - Generation: The retrieved text chunks and the original query are passed to a Large Language Model (Mistral via Hugging Face) which generates a helpful, conversational answer based only on the provided context.
+### 1. Text-Based Queries (RAG)
 
-2. Image-Based Queries (VQA)
-   - Analysis: The image is sent to the DeepAI Visual Question Answering API.
-   - Interpretation: The API's analysis of the image is returned as a text description.
-   - Formatting: The LLM formats this description into a user-friendly JSON object containing the detected issue, possible cause, and a recommended solution.
+When a user sends a text message, the system follows a **Retrieval-Augmented Generation (RAG)** pipeline:
+1.  **Embedding:** The user's query is converted into a vector embedding using sentence transformers.
+2.  **Retrieval:** The system searches the **Pinecone** vector database to find the most relevant text chunks from the Samsung user manual.
+3.  **Generation:** The retrieved chunks and the original query are passed to the **Mistral-7B** language model, which generates a coherent and contextually relevant answer.
 
-------------------------------------------------------------
+### 2. Image-Based Queries (VQA)
 
-🚀 Tech Stack
+When a user uploads an image:
+1.  **Image Analysis:** The image is processed by a **Visual Question Answering (VQA)** model (`Salesforce/blip-vqa-base`).
+2.  **Contextual Prompting:** The model is prompted with a specific question like "What is in this image?" or "What error is shown on this display?".
+3.  **Answer Generation:** The model provides a text-based description or answer based on the visual content of the image.
 
-Backend: Flask  
-Frontend: HTML, CSS, JavaScript (no frameworks)  
-AI Framework: LangChain  
-Vector Database: Pinecone  
-LLM & Embeddings: Hugging Face (Mistral-8x7B, all-MiniLM-L6-v2)  
-Visual Question Answering: DeepAI  
-Deployment: Python WSGI Server  
+---
 
-------------------------------------------------------------
+## 🚀 Tech Stack
 
-⚙️ Setup and Installation
+* **Backend:** Python, Flask
+* **Frontend:** HTML, CSS, JavaScript
+* **AI/ML Models:**
+    * **LLM:** `mistralai/Mistral-7B-Instruct-v0.2` (via Hugging Face)
+    * **VQA:** `Salesforce/blip-vqa-base` (via Hugging Face)
+    * **Embedding:** `sentence-transformers/all-MiniLM-L6-v2`
+* **Vector Database:** Pinecone
+* **PDF Processing:** LangChain, PyPDFLoader
+* **Deployment:** (Your deployment platform, e.g., Heroku, AWS, etc.)
+
+---
+
+## ⚙️ Setup and Installation
 
 Follow these steps to get the chatbot running locally.
 
-Prerequisites:
-- Python 3.8+
-- A Pinecone account
-- A Hugging Face account
-- A DeepAI account
+### Prerequisites
 
-------------------------------------------------------------
+* Python 3.8+
+* Pip
+* An account with [Hugging Face](https://huggingface.co/)
+* An account with [Pinecone](https://www.pinecone.io/)
+* An account with [DeepAI](https://deepai.org/) (for the VQA model, or you can run it locally if you have the resources)
 
-1. Clone the Repository
-   git clone https://github.com/your-username/your-repo-name.git
-   cd your-repo-name
+### 1. Clone the Repository
 
-2. Create a Virtual Environment
-   For Windows:
-      python -m venv venv
-      venv\Scripts\activate
-   For macOS/Linux:
-      python3 -m venv venv
-      source venv/bin/activate
+```bash
+git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
+cd your-repo-name
+```
+### 2. Create a Virtual Environment
 
-3. Install Dependencies
-   pip install -r requirements.txt
 
-4. Set Up Environment Variables
-   Create a file named .env in the root directory of the project and add your API keys:
-      HUGGINGFACEHUB_API_TOKEN="hf_..."
-      PINECONE_API_KEY="..."
-      PINECONE_ENVIRONMENT="..."
-      DEEPAI_API_KEY="..."
+It's recommended to use a virtual environment to manage dependencies.
 
-5. Ingest the Knowledge Base
-   Before running the app, you need to process the Samsung user manual and store its embeddings in your Pinecone index.
-   - Create a data folder in the root directory.
-   - Place your PDF manual inside it (e.g., data/Samsung-user-manual.pdf).
-   - Run the ingestion script:
-        python ingest.py
-   This script will load the PDF, split it into chunks, create embeddings, and upload them to your specified Pinecone index.
+```Bash
 
-6. Run the Application
-   python main.py
+# For Windows
+python -m venv venv
+venv\Scripts\activate
 
-   The application will be running at http://127.0.0.1:5001.
+# For macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
 
-------------------------------------------------------------
+### 3. Install Dependencies
+Install all the required Python packages from the requirements.txt file.
+
+```Bash
+
+pip install -r requirements.txt
+```
+
+### 4. Set Up Environment Variables
+Create a file named .env in the root directory of the project and add your API keys:
+```
+HUGGINGFACEHUB_API_TOKEN="hf_..."
+PINECONE_API_KEY="..."
+PINECONE_ENVIRONMENT="..."
+DEEPAI_API_KEY="..."
+```
+
+### 5. Ingest the Knowledge Base
+Before running the app, you need to process the Samsung user manual and store its embeddings in your Pinecone index.
+
+```Bash
+
+python ingest.py
+```
+
+This script will load the PDF, split it into chunks, create embeddings, and upload them to your specified Pinecone index.
+
+### 6. Run the Application
+Once the ingestion is complete, you can start the Flask server.
+
+```Bash
+
+python main.py
+```
+
+The application will be running at http://127.0.0.1:5001.
 
 💬 Usage
+Open your web browser and navigate to http://127.0.0.1:5001.
 
-- Open your web browser and navigate to http://127.0.0.1:5001
-- Click on the chat toggle button in the bottom-right corner to open the chat widget.
-- Ask a question about your refrigerator or click the attachment icon to upload an image for analysis.
+For text queries: Type your question about the Samsung refrigerator into the chat box and press Enter.
 
-------------------------------------------------------------
+For image queries: Click the "Upload Image" button, select an image file of an error code or part, and the chatbot will analyze it.
 
 📂 Project Structure
-
+```
 .
 ├── data/
-│   └── Samsung-user-manual.pdf      # Knowledge base PDF
+│   └── Samsung-user-manual.pdf   # Knowledge base PDF
 ├── templates/
-│   └── sample.html                  # Frontend HTML
-├── .env                             # API keys and secrets
-├── ingest.py                        # Script to process and embed the PDF
-├── main.py                          # Main Flask application and API endpoints
-├── requirements.txt                 # Python dependencies
-└── README.md                        # This file
+│   └── sample.html               # Frontend HTML
+├── .env                          # API keys and secrets
+├── ingest.py                     # Script to process and embed the PDF
+├── main.py                       # Main Flask application and API endpoints
+├── requirements.txt              # Python dependencies
+└── README.md                     # This file
+```
 
-------------------------------------------------------------
 
-🧠 Full Setup Process Example
 
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
-python -m venv venv
-venv\Scripts\activate                # For Windows
-# OR
-python3 -m venv venv
-source venv/bin/activate             # For macOS/Linux
-pip install -r requirements.txt
-echo HUGGINGFACEHUB_API_TOKEN="hf_..." > .env
-echo PINECONE_API_KEY="..." >> .env
-echo PINECONE_ENVIRONMENT="..." >> .env
-echo DEEPAI_API_KEY="..." >> .env
-mkdir data
-# Place Samsung-user-manual.pdf in data/
-python ingest.py
-python main.py
-# Open in browser: http://127.0.0.1:5001
 
-------------------------------------------------------------
 
-📄 License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
