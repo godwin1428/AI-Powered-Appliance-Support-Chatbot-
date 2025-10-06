@@ -121,14 +121,14 @@ python main.py
 
 The application will be running at http://127.0.0.1:5001.
 
-💬 Usage
+### 💬 Usage
 Open your web browser and navigate to http://127.0.0.1:5001.
 
 For text queries: Type your question about the Samsung refrigerator into the chat box and press Enter.
 
 For image queries: Click the "Upload Image" button, select an image file of an error code or part, and the chatbot will analyze it.
 
-📂 Project Structure
+### 📂 Project Structure
 ```
 .
 ├── data/
