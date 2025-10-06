@@ -1,0 +1,12 @@
+python-dotenv
+langchain
+langchain-huggingface
+pinecone-client
+pypdf
+sentence-transformers
+flask
+requests
+Pillow
+huggingface_hub
+deepai
+langchain-pinecone

@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered Chatbot Widget with n8n</title>
+    <style>
+        /* ===== SCOPED CHATBOT STYLES - NO INTERFERENCE WITH WEBSITE ===== */
+        
+        /* Apply background image to the body */
+        body {
+            background-image: url({{ url_for('static', filename='wallpaper-1-PC.png') }});
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        /* Screen reader only content */
+        .chatbot-sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes chatbot-pulse-glow {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 4px 15px rgba(var(--chatbot-primary-rgb), 0.4);
+            }
+            50% {
+                transform: scale(1.03);
+                box-shadow: 0 6px 20px rgba(var(--chatbot-primary-rgb), 0.5);
+            }
+        }
+
+        @keyframes chatbot-messageSlide {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes chatbot-fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes chatbot-welcomeFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes chatbot-welcomeFadeOut {
+            from {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            to {
+                opacity: 0;
+                transform: translateY(-10px) scale(0.98);
+            }
+        }
+
+        @keyframes chatbot-typingDots {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes chatbot-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ===== CSS CUSTOM PROPERTIES (THEME SYSTEM) ===== */
+        :root {
+            --chatbot-primary-color: #000080;
+            --chatbot-secondary-color: #3b82f6;
+            --chatbot-primary-rgb: 0, 44, 109;
+            --chatbot-secondary-rgb: 0, 64, 128;
+            --chatbot-success-color: #4caf50;
+            --chatbot-error-color: #f44336;
+            --chatbot-background-color: #fafafa;
+            --chatbot-text-color: #333;
+            --chatbot-light-text: #666;
+            --chatbot-border-color: #eee;
+            --chatbot-shadow-light: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --chatbot-shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.15);
+            --chatbot-shadow-heavy: 0 10px 40px rgba(0, 0, 0, 0.15);
+            --chatbot-border-radius: 20px;
+            --chatbot-border-radius-small: 8px;
+            --chatbot-transition: all 0.3s ease;
+        }
+
+        /* ===== CHATBOT TOGGLE BUTTON ===== */
+        .chatbot-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            animation: chatbot-pulse-glow 2.5s ease-in-out infinite;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--chatbot-transition);
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .chatbot-toggle:hover {
+            animation: none;
+            transform: scale(1.12);
+            box-shadow: 0 8px 25px rgba(var(--chatbot-primary-rgb), 0.6);
+        }
+
+        .chatbot-toggle:focus {
+            outline: 2px solid rgba(var(--chatbot-primary-rgb), 0.7);
+            outline-offset: 2px;
+            animation: none;
+        }
+
+        .chatbot-toggle svg {
+            width: 28px;
+            height: 28px;
+            fill: white;
+        }
+
+        /* ===== CHAT WIDGET CONTAINER ===== */
+        .chatbot-widget {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            height: 450px;
+            background: white;
+            border-radius: var(--chatbot-border-radius);
+            box-shadow: var(--chatbot-shadow-heavy);
+            z-index: 10000;
+            transform: scale(0) translateY(20px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .chatbot-widget *, 
+        .chatbot-widget *::before, 
+        .chatbot-widget *::after {
+            box-sizing: border-box;
+        }
+
+        .chatbot-widget.open {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+
+        /* ===== CHAT HEADER ===== */
+        .chatbot-widget .chat-header {
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            padding: 20px;
+            border-radius: var(--chatbot-border-radius) var(--chatbot-border-radius) 0 0;
+            flex-shrink: 0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            position: relative;
+        }
+
+        /* Glassy overlay effect */
+        .chatbot-widget .chat-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+            pointer-events: none;
+            border-radius: var(--chatbot-border-radius) var(--chatbot-border-radius) 0 0;
+        }
+
+        .chatbot-widget .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            z-index: 1;
+        }
+
+        .chatbot-widget .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chatbot-widget .bot-avatar.header-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: chatbot-pulse-glow 3s ease-in-out infinite;
+            border: 2px solid white;
+            overflow: hidden;
+            background-color: white;
+            transition: var(--chatbot-transition);
+        }
+
+        .chatbot-widget .bot-avatar.header-avatar:hover {
+            animation: none;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .chatbot-widget .bot-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chatbot-widget .header-info h3 {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 2px;
+            margin: 0 0 2px 0;
+        }
+
+        .chatbot-widget .online-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 12px;
+        }
+
+        .chatbot-widget .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--chatbot-success-color);
+            border-radius: 50%;
+            animation: chatbot-pulse 2s infinite;
+        }
+
+        .chatbot-widget .status-dot.failed {
+            background: var(--chatbot-error-color);
+            animation: none;
+        }
+
+        .chatbot-widget .close-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--chatbot-transition);
+            backdrop-filter: blur(5px);
+        }
+
+        .chatbot-widget .close-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .chatbot-widget .close-btn:focus {
+            outline: 2px solid rgba(255, 255, 255, 0.8);
+            outline-offset: 2px;
+        }
+
+        .chatbot-widget .close-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        /* ===== CHAT MESSAGES (NOW INCLUDES WELCOME MESSAGE) ===== */
+        .chatbot-widget .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px 20px;
+            background: var(--chatbot-background-color);
+            min-height: 0;
+        }
+
+        .chatbot-widget .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chatbot-widget .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chatbot-widget .chat-messages::-webkit-scrollbar-thumb {
+            background: #b0b0b0;
+            border-radius: 3px;
+        }
+
+        /* ===== WELCOME MESSAGE (NOW BEHAVES LIKE REGULAR MESSAGE) ===== */
+        .chatbot-widget .welcome-message {
+            margin-bottom: 16px;
+            animation: chatbot-welcomeFadeIn 0.6s ease-out;
+        }
+
+        .chatbot-widget .welcome-message.hiding {
+            animation: chatbot-welcomeFadeOut 0.4s ease-in forwards;
+        }
+
+        .chatbot-widget .welcome-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .chatbot-widget .welcome-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: var(--chatbot-shadow-light);
+            overflow: hidden;
+        }
+
+        .chatbot-widget .welcome-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chatbot-widget .welcome-text {
+            flex: 1;
+            background: #e9ecef;
+            padding: 12px 16px;
+            border-radius: 18px;
+            border-bottom-left-radius: 6px;
+            box-shadow: var(--chatbot-shadow-light);
+            position: relative;
+            max-width: 75%;
+        }
+
+        .chatbot-widget .welcome-text h4 {
+            color: var(--chatbot-primary-color);
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            margin: 0 0 8px 0;
+        }
+
+        .chatbot-widget .welcome-text p {
+            color: var(--chatbot-text-color);
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 0;
+            margin: 0;
+        }
+
+        .chatbot-widget .welcome-text .highlight {
+            color: var(--chatbot-primary-color);
+            font-weight: 500;
+        }
+
+        .chatbot-widget .welcome-dismiss {
+            display: none !important;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            color: var(--chatbot-light-text);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            align-items: center;
+            justify-content: center;
+            transition: var(--chatbot-transition);
+        }
+
+        .chatbot-widget .welcome-dismiss:hover {
+            background: rgba(0, 0, 0, 0.05);
+            color: var(--chatbot-text-color);
+        }
+
+        .chatbot-widget .welcome-dismiss svg {
+            width: 12px;
+            height: 12px;
+            fill: currentColor;
+        }
+
+        .chatbot-widget .message {
+            display: flex;
+            margin-bottom: 16px;
+            animation: chatbot-messageSlide 0.3s ease-out;
+        }
+
+        .chatbot-widget .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin: 0 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: var(--chatbot-shadow-light);
+        }
+
+        .chatbot-widget .bot-avatar.message-avatar {
+            background-color: #e9ecef;
+            border: 1px solid #d1d1d1;
+        }
+
+        .chatbot-widget .user-message-avatar {
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            border: 1px solid var(--chatbot-primary-color);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .chatbot-widget .message-content {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        /* Markdown styling */
+        .chatbot-widget .message-content h1, 
+        .chatbot-widget .message-content h2, 
+        .chatbot-widget .message-content h3 {
+            margin: 8px 0 4px 0;
+            font-weight: 600;
+        }
+
+        .chatbot-widget .message-content h1 { 
+            font-size: 20px;
+        }
+        .chatbot-widget .message-content h2 { 
+            font-size: 18px;
+        }
+        .chatbot-widget .message-content h3 { 
+            font-size: 17px;
+        }
+
+        .chatbot-widget .message-content p {
+            margin: 4px 0;
+        }
+
+        .chatbot-widget .message-content ul, 
+        .chatbot-widget .message-content ol {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .chatbot-widget .message-content li {
+            margin: 2px 0;
+        }
+
+        .chatbot-widget .message-content code {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+
+        .chatbot-widget .message-content pre {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 8px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+
+        .chatbot-widget .message-content blockquote {
+            border-left: 3px solid #ddd;
+            margin: 8px 0;
+            padding-left: 12px;
+            color: var(--chatbot-light-text);
+        }
+
+        .chatbot-widget .bot-message .message-content {
+            background: #e9ecef;
+            color: var(--chatbot-text-color);
+            border-bottom-left-radius: 6px;
+            box-shadow: var(--chatbot-shadow-light);
+        }
+
+        .chatbot-widget .user-message {
+            justify-content: flex-end;
+        }
+
+        .chatbot-widget .user-message .message-content {
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            color: white;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 2px 8px rgba(var(--chatbot-primary-rgb), 0.2);
+        }
+
+        /* ===== TYPING INDICATOR ===== */
+        .chatbot-widget .typing-indicator-message {
+            display: flex;
+            margin-bottom: 16px;
+            animation: chatbot-messageSlide 0.3s ease-out;
+        }
+
+        .chatbot-widget .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #e9ecef;
+            color: var(--chatbot-light-text);
+            border-radius: 18px;
+            border-bottom-left-radius: 6px;
+            box-shadow: var(--chatbot-shadow-light);
+            max-width: 80px;
+        }
+
+        .chatbot-widget .typing-dots {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .chatbot-widget .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: #999;
+            border-radius: 50%;
+            animation: chatbot-typingDots 1.4s infinite ease-in-out;
+        }
+
+        .chatbot-widget .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .chatbot-widget .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .chatbot-widget .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        /* ===== QUICK REPLIES ===== */
+        .chatbot-widget .quick-replies {
+            padding: 0 15px 15px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            background: var(--chatbot-background-color);
+            animation: chatbot-fadeInUp 0.3s ease-out;
+        }
+
+        .chatbot-widget .quick-replies:empty {
+            display: none;
+            padding: 0;
+        }
+
+        .chatbot-widget .quick-reply-btn {
+            background: transparent;
+            border: 1px solid var(--chatbot-primary-color);
+            color: var(--chatbot-primary-color);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--chatbot-transition);
+            flex-shrink: 0;
+        }
+
+        .chatbot-widget .quick-reply-btn:hover, 
+        .chatbot-widget .quick-reply-btn:focus {
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(var(--chatbot-primary-rgb), 0.2);
+            outline: none;
+        }
+
+        .chatbot-widget .quick-reply-btn.close-style {
+            border-color: var(--chatbot-error-color);
+            color: var(--chatbot-error-color);
+        }
+
+        .chatbot-widget .quick-reply-btn.close-style:hover, 
+        .chatbot-widget .quick-reply-btn.close-style:focus {
+            background: var(--chatbot-error-color);
+            color: white;
+        }
+
+        /* ===== CHAT INPUT ===== */
+        .chatbot-widget .chat-input {
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid var(--chatbot-border-color);
+            flex-shrink: 0;
+        }
+
+        .chatbot-widget .input-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8f9fa;
+            border-radius: 25px;
+            padding: 6px 12px;
+            border: 2px solid transparent;
+            transition: var(--chatbot-transition);
+        }
+
+        .chatbot-widget .input-container:focus-within {
+            border-color: var(--chatbot-primary-color);
+            box-shadow: 0 0 0 2px rgba(var(--chatbot-primary-rgb), 0.2);
+        }
+
+        .chatbot-widget .attachment-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            color: #B0B0B0;
+            border-radius: 50%;
+            transition: var(--chatbot-transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .chatbot-widget .attachment-btn:hover {
+            background-color: #f0f0f0;
+            color: #888;
+            transform: scale(1.1);
+        }
+
+        .chatbot-widget .attachment-btn:focus {
+            outline: 2px solid #B0B0B0;
+            outline-offset: 2px;
+        }
+
+        .chatbot-widget .attachment-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .chatbot-widget .message-input {
+            flex: 1;
+            border: none;
+            background: none;
+            outline: none;
+            font-size: 14px;
+            padding: 8px 0;
+        }
+
+        .chatbot-widget .message-input::placeholder {
+            color: #999;
+        }
+
+        .chatbot-widget .send-btn {
+            background: linear-gradient(135deg, var(--chatbot-primary-color), var(--chatbot-secondary-color));
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--chatbot-transition);
+        }
+
+        .chatbot-widget .send-btn:hover, 
+        .chatbot-widget .send-btn:focus {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(var(--chatbot-primary-rgb), 0.3);
+            outline: none;
+        }
+
+        .chatbot-widget .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chatbot-widget .send-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: white;
+        }
+
+        /* ===== ERROR MESSAGE ===== */
+        .chatbot-widget .error-message {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+            padding: 10px 15px;
+            border-radius: var(--chatbot-border-radius-small);
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chatbot-widget .error-message svg {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            fill: #c62828;
+        }
+
+        /* ===== RESPONSIVE DESIGN ===== */
+        @media (max-width: 480px) {
+            .chatbot-widget {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+                height: 70vh;
+                max-height: 450px;
+                border-radius: 15px;
+            }
+
+            .chatbot-toggle {
+                bottom: 15px;
+                right: 15px;
+                width: 55px;
+                height: 55px;
+            }
+
+            .chatbot-widget .chat-header {
+                padding: 15px;
+            }
+
+            .chatbot-widget .header-info h3 {
+                font-size: 16px;
+            }
+
+            .chatbot-widget .chat-input {
+                padding: 10px 15px;
+            }
+
+            .chatbot-widget .welcome-text {
+                padding: 12px;
+            }
+
+            .chatbot-widget .welcome-text h4 {
+                font-size: 16px;
+            }
+
+            .chatbot-widget .welcome-text p {
+                font-size: 15px;
+            }
+
+            .chatbot-widget .chat-messages {
+                padding: 8px 15px;
+            }
+
+            .chatbot-widget .message-content {
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button id="chatbot-toggle" class="chatbot-toggle" aria-label="Open chat">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+        </svg>
+    </button>
+
+    <div id="chatbot-widget" class="chatbot-widget" role="dialog" aria-labelledby="chat-title" aria-modal="true" tabindex="-1">
+        <div class="chat-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="bot-avatar header-avatar">
+                        <img id="header-bot-avatar" src="" alt="" aria-hidden="true">
+                    </div>
+                    <div class="header-info">
+                        <h3 id="chat-title">Samsung Support Bot</h3>
+                        <div class="online-status">
+                            <div class="status-dot" id="status-dot" aria-hidden="true"></div>
+                            <span class="chatbot-sr-only" id="status-text">Online</span>
+                            <span id="status-message">Online</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="close-btn" id="close-chat" aria-label="Close chat">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages" aria-live="polite" aria-atomic="true">
+            <div class="welcome-message" id="welcome-message">
+                <div class="welcome-content">
+                    <div class="welcome-avatar" id="welcome-avatar">
+                        <img id="welcome-bot-avatar" src="" alt="" aria-hidden="true">
+                    </div>
+                    <div class="welcome-text">
+                        <button class="welcome-dismiss" id="welcome-dismiss" aria-label="Dismiss welcome message">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </button>
+                        <h4 id="welcome-title">Welcome! 👋</h4>
+                        <p id="welcome-text-content">
+                            I'm your <span class="highlight">Samsung Assistant</span>, ready to help you with any questions or tasks. 
+                            Feel free to ask me anything!
+                        </p>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+        <div class="quick-replies" id="quick-replies">
+            </div>
+
+        <div class="chat-input">
+            <div class="input-container">
+                <button class="attachment-btn" id="attachment-btn" aria-label="Attach file">
+                    <svg viewBox="0 0 24 24">
+                        <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.64 16.2a2 2 0 0 1-2.83-2.83l8.49-8.49"/>
+                    </svg>
+                </button>
+                <input type="text" id="message-input" class="message-input" placeholder="Type your message..." aria-label="Type your message">
+                <button class="send-btn" id="send-btn" aria-label="Send message">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Simple Markdown Parser for formatting bot messages
+         */
+        class MarkdownParser {
+            static parse(text) {
+                if (!text) return '';
+                
+                text = this.sanitizeHTML(text);
+                
+                return text
+                    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/__(.*?)__/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/_(.*?)_/g, '<em>$1</em>')
+                    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                    .replace(/`([^`]+)`/g, '<code>$1</code>')
+                    .replace(/^> (.*$)/gim, '<blockquote>$1</blockquote>')
+                    .replace(/^\* (.*$)/gim, '<li>$1</li>')
+                    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+                    .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/\n/g, '<br>')
+                    .replace(/^(?!<[h|u|o|p|b])/gm, '<p>')
+                    .replace(/(?<!>)$/gm, '</p>')
+                    .replace(/<p><\/p>/g, '')
+                    .replace(/<p>(<[h|u|o|b])/g, '$1')
+                    .replace(/(<\/[h|u|o|b][^>]*>)<\/p>/g, '$1');
+            }
+            
+            static sanitizeHTML(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        }
+
+        /**
+         * Enhanced ChatBot Class with n8n Integration (NO MEMORY)
+         */
+        class ChatBot {
+            constructor(config = {}) {
+                this.config = this.mergeConfig(config);
+                this.state = {
+                    isOpen: false,
+                    isTyping: false,
+                    isInitialized: false,
+                    userHasInteracted: false
+                };
+                
+                // Generate fresh session ID on each page load (no persistence)
+                this.sessionId = this.generateSessionId();
+                
+                this.elements = this.initializeElements();
+                this.setupEventListeners();
+                this.applyConfiguration();
+                
+                // Initialize chat with n8n
+                this.initializeChat();
+                
+                this.updateConnectionStatus('online');
+            }
+
+            /**
+             * Generate a fresh session ID (no localStorage)
+             */
+            generateSessionId() {
+                return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            /**
+             * Initialize chat - get initial message from n8n if needed
+             */
+            async initializeChat() {
+                try {
+                    // Only try to get initial message from n8n if user has already interacted
+                    if (this.state.userHasInteracted) {
+                        const response = await this.callN8NWebhook('', 'initialize', this.sessionId);
+                        
+                        if (response) {
+                            const responseText = this.extractResponseText(response);
+                            if (responseText) {
+                                this.addMessage(responseText, 'bot');
+                                
+                                // Check if n8n provides quick replies
+                                if (response.quickReplies && Array.isArray(response.quickReplies)) {
+                                    this.showQuickReplies(response.quickReplies);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    // Silently handle - no initial message is fine
+                    console.log('No initial message from n8n, chat will start with welcome message');
+                }
+                
+                this.state.isInitialized = true;
+            }
+
+            /**
+             * Merge user config with defaults
+             */
+            mergeConfig(userConfig) {
+                const defaultConfig = {
+                    // N8N Configuration
+                    webhookUrl: '', // REQUIRED: Your n8n webhook URL
+                    webhookConfig: {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    },
+                    chatInputKey: 'chatInput',
+                    chatSessionKey: 'sessionId',
+                    enableStreaming: false,
+                    allowFileUploads: false,
+                    allowedFilesMimeTypes: 'image/*,application/pdf',
+                    
+                    // Welcome Message Configuration
+                    welcomeMessage: {
+                        enabled: true,
+                        title: 'Welcome! 👋',
+                        text: 'I\'m your <span class="highlight">Samsung Assistant</span>, ready to help you with any questions or tasks. Feel free to ask me anything!',
+                        showOnFirstVisit: true,
+                        dismissible: false,
+                        autoHideAfterFirstMessage: false
+                    },
+                    
+                    // Basic Bot Configuration
+                    botName: 'Samsung Assistant',
+                    botAvatarHeaderUrl: 'https://cdn-icons-png.flaticon.com/256/4712/4712042.png',
+                    botAvatarMessageUrl: 'https://cdn-icons-png.flaticon.com/256/4712/4712042.png',
+                    userAvatarUrl: 'https://cdn-icons-png.flaticon.com/256/9131/9131529.png',
+                    
+                    // Theme Colors
+                    primaryColor: '#000080',
+                    secondaryColor: '#3b82f6',
+                    
+                    // Behavior Configuration
+                    enableAttachments: true,
+                    enableMarkdown: true,
+                    autoCloseOnOutsideClick: false,
+                    showTypingIndicator: true,
+                    errorRetryAttempts: 3,
+                    showDefaultQuickReplies: false,
+                    
+                    // Metadata for n8n workflow (no persistent session data)
+                    metadata: {
+                        source: 'chatbot-widget',
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                
+                return { ...defaultConfig, ...userConfig };
+            }
+
+            /**
+             * Initialize DOM elements
+             */
+            initializeElements() {
+                return {
+                    toggle: document.getElementById('chatbot-toggle'),
+                    widget: document.getElementById('chatbot-widget'),
+                    closeBtn: document.getElementById('close-chat'),
+                    messageInput: document.getElementById('message-input'),
+                    sendBtn: document.getElementById('send-btn'),
+                    messagesContainer: document.getElementById('chat-messages'),
+                    quickRepliesContainer: document.getElementById('quick-replies'),
+                    attachmentBtn: document.getElementById('attachment-btn'),
+                    headerTitle: document.getElementById('chat-title'),
+                    headerAvatar: document.getElementById('header-bot-avatar'),
+                    statusDot: document.getElementById('status-dot'),
+                    statusText: document.getElementById('status-text'),
+                    statusMessage: document.getElementById('status-message'),
+                    
+                    // Welcome message elements
+                    welcomeMessage: document.getElementById('welcome-message'),
+                    welcomeTitle: document.getElementById('welcome-title'),
+                    welcomeTextContent: document.getElementById('welcome-text-content'),
+                    welcomeAvatar: document.getElementById('welcome-bot-avatar'),
+                    welcomeDismiss: document.getElementById('welcome-dismiss')
+                };
+            }
+
+            /**
+             * Apply user configuration to UI elements
+             */
+            applyConfiguration() {
+                // Apply theme colors
+                this.applyTheme();
+                
+                // Configure UI elements
+                this.elements.headerTitle.textContent = this.config.botName;
+                
+                // Set bot avatar with error handling
+                this.elements.headerAvatar.src = this.config.botAvatarHeaderUrl;
+                this.elements.headerAvatar.alt = `${this.config.botName} Avatar`;
+                this.elements.headerAvatar.onerror = () => {
+                    this.elements.headerAvatar.style.display = 'none';
+                    this.elements.headerAvatar.parentElement.innerHTML = '🤖';
+                    this.elements.headerAvatar.parentElement.style.fontSize = '20px';
+                };
+                
+                // Configure welcome message
+                this.configureWelcomeMessage();
+                
+                // Configure attachment button visibility
+                if (!this.config.enableAttachments && !this.config.allowFileUploads) {
+                    this.elements.attachmentBtn.style.display = 'none';
+                }
+            }
+
+            /**
+             * Configure welcome message
+             */
+            configureWelcomeMessage() {
+                if (!this.config.welcomeMessage.enabled) {
+                    this.elements.welcomeMessage.style.display = 'none';
+                    return;
+                }
+
+                // Set welcome message content
+                this.elements.welcomeTitle.textContent = this.config.welcomeMessage.title;
+                this.elements.welcomeTextContent.innerHTML = this.config.welcomeMessage.text;
+                
+                // Set welcome avatar
+                this.elements.welcomeAvatar.src = this.config.botAvatarMessageUrl;
+                this.elements.welcomeAvatar.alt = `${this.config.botName} Avatar`;
+                this.elements.welcomeAvatar.onerror = () => {
+                    this.elements.welcomeAvatar.parentElement.innerHTML = '🤖';
+                    this.elements.welcomeAvatar.parentElement.style.fontSize = '20px';
+                    this.elements.welcomeAvatar.parentElement.style.color = 'white';
+                };
+            }
+
+            /**
+             * Apply theme colors using CSS custom properties
+             */
+            applyTheme() {
+                const root = document.documentElement;
+                root.style.setProperty('--chatbot-primary-color', this.config.primaryColor);
+                root.style.setProperty('--chatbot-secondary-color', this.config.secondaryColor);
+                
+                // Convert hex to RGB for rgba usage
+                const primaryRgb = this.hexToRgb(this.config.primaryColor);
+                const secondaryRgb = this.hexToRgb(this.config.secondaryColor);
+                
+                if (primaryRgb) {
+                    root.style.setProperty('--chatbot-primary-rgb', `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`);
+                }
+                if (secondaryRgb) {
+                    root.style.setProperty('--chatbot-secondary-rgb', `${secondaryRgb.r}, ${secondaryRgb.g}, ${secondaryRgb.b}`);
+                }
+            }
+
+            /**
+             * Convert hex color to RGB object
+             */
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+
+            /**
+             * Setup all event listeners
+             */
+            setupEventListeners() {
+                // Toggle chat
+                this.elements.toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.toggleChat();
+                });
+
+                // Close chat
+                this.elements.closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.closeChat();
+                });
+
+                // Send message
+                this.elements.sendBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.sendMessage();
+                });
+
+                // Enter key to send
+                this.elements.messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+
+                // Welcome message dismiss (functionality disabled)
+                this.elements.welcomeDismiss.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Functionality removed - welcome message stays visible
+                });
+
+                // Attachment handling
+                if (this.config.enableAttachments || this.config.allowFileUploads) {
+                    this.elements.attachmentBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.handleAttachment();
+                    });
+                }
+
+                // Quick replies
+                this.elements.quickRepliesContainer.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (e.target.classList.contains('quick-reply-btn')) {
+                        this.handleQuickReply(e.target);
+                    }
+                });
+
+                // Prevent widget clicks from closing chat
+                this.elements.widget.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                });
+
+                // Outside click to close
+                if (this.config.autoCloseOnOutsideClick) {
+                    document.addEventListener('click', (e) => {
+                        if (this.state.isOpen && 
+                            !this.elements.widget.contains(e.target) && 
+                            !this.elements.toggle.contains(e.target)) {
+                            this.closeChat();
+                        }
+                    });
+                }
+
+                // Escape key to close
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && this.state.isOpen) {
+                        this.closeChat();
+                    }
+                });
+            }
+
+            /**
+             * Handle first user interaction
+             */
+            handleFirstInteraction() {
+                if (!this.state.userHasInteracted) {
+                    this.state.userHasInteracted = true;
+                }
+            }
+
+            /**
+             * Handle quick reply button clicks
+             */
+            handleQuickReply(button) {
+                const message = button.dataset.message || button.textContent;
+                
+                this.handleFirstInteraction();
+                
+                // Check for special close button
+                if (button.classList.contains('close-style') || 
+                    message.toLowerCase().includes('close') || 
+                    message.toLowerCase().includes('end')) {
+                    this.closeChat();
+                    return;
+                }
+                
+                if (message.trim()) {
+                    this.addMessage(message.trim(), 'user');
+                    this.processUserMessage(message.trim());
+                    this.clearQuickReplies();
+                    this.elements.messageInput.focus();
+                }
+            }
+
+            /**
+             * Toggle chat open/close state
+             */
+            toggleChat() {
+                if (this.state.isOpen) {
+                    this.closeChat();
+                } else {
+                    this.openChat();
+                }
+            }
+
+            /**
+             * Open the chat widget
+             */
+            openChat() {
+                this.elements.widget.classList.add('open');
+                this.elements.toggle.setAttribute('aria-label', 'Close chat');
+                this.elements.widget.setAttribute('aria-hidden', 'false');
+                this.state.isOpen = true;
+                
+                setTimeout(() => {
+                    this.elements.messageInput.focus();
+                    this.scrollToBottom();
+                }, 350);
+            }
+
+            /**
+             * Close the chat widget
+             */
+            closeChat() {
+                this.elements.widget.classList.remove('open');
+                this.elements.toggle.setAttribute('aria-label', 'Open chat');
+                this.elements.widget.setAttribute('aria-hidden', 'true');
+                this.elements.toggle.focus();
+                this.state.isOpen = false;
+            }
+
+            /**
+             * Send user message
+             */
+            async sendMessage() {
+                const message = this.elements.messageInput.value.trim();
+                if (message && !this.state.isTyping) {
+                    this.handleFirstInteraction();
+                    
+                    this.addMessage(message, 'user');
+                    this.elements.messageInput.value = '';
+                    this.clearQuickReplies();
+                    this.elements.sendBtn.disabled = true;
+                    
+                    await this.processUserMessage(message);
+                    
+                    this.elements.sendBtn.disabled = false;
+                }
+            }
+
+            /**
+             * Process user message through n8n webhook (NO LOCAL MEMORY)
+             */
+            async processUserMessage(message) {
+                try {
+                    this.updateConnectionStatus('online');
+                    
+                    if (this.config.showTypingIndicator) {
+                        this.showTypingIndicator();
+                    }
+                    
+                    const botResponse = await this.callN8NWebhook(message, 'sendMessage', this.sessionId);
+                    
+                    if (this.config.showTypingIndicator) {
+                        this.hideTypingIndicator();
+                    }
+                    
+                    // Handle response purely from n8n
+                    if (botResponse) {
+                        const responseText = this.extractResponseText(botResponse);
+                        if (responseText) {
+                            this.addMessage(responseText, 'bot');
+                            
+                            // Only show quick replies if n8n provides them
+                            if (botResponse.quickReplies && Array.isArray(botResponse.quickReplies)) {
+                                this.showQuickReplies(botResponse.quickReplies);
+                            }
+                            
+                            // No local memory - n8n handles all conversation context
+                        } else {
+                            throw new Error('Invalid response format from n8n workflow');
+                        }
+                    } else {
+                        throw new Error('No response from n8n workflow');
+                    }
+                    
+                } catch (error) {
+                    if (this.config.showTypingIndicator) {
+                        this.hideTypingIndicator();
+                    }
+                    
+                    this.handleN8NError(error);
+                }
+            }
+
+            /**
+             * Call n8n webhook with proper payload structure (NO SESSION PERSISTENCE)
+             */
+            async callN8NWebhook(userMessage, action = 'sendMessage', sessionId = null) {
+    if (!this.config.webhookUrl) {
+        throw new Error('n8n webhook URL is required. Please configure webhookUrl in the chatbot config.');
+    }
+
+    const formData = new FormData();
+    formData.append('action', action);
+    formData.append(this.config.chatSessionKey, sessionId || this.sessionId);
+
+    if (action === 'sendMessage') {
+        formData.append(this.config.chatInputKey, userMessage);
+    }
+
+    // Attach file if user uploaded
+    if (this.pendingFileData) {
+        const base64Data = this.pendingFileData.data.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: this.pendingFileData.type });
+
+        formData.append('file', blob, this.pendingFileData.name);
+        this.pendingFileData = null;
+    }
+
+    const response = await fetch(`${this.config.webhookUrl}?action=${action}`, {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`n8n webhook error ${response.status}: ${errorText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+        return await response.json();
+    } else {
+        const textResponse = await response.text();
+        return { response: textResponse, output: textResponse };
+    }
+}
+
+
+            /**
+             * Extract response text from n8n workflow output
+             */
+            extractResponseText(responseData) {
+                // Handle different possible response structures from n8n
+                if (typeof responseData === 'string') {
+                    return responseData;
+                }
+                
+                if (responseData.response) {
+                    return responseData.response;
+                }
+                
+                if (responseData.output) {
+                    return responseData.output;
+                }
+                
+                if (responseData.message) {
+                    return responseData.message;
+                }
+                
+                if (responseData.content) {
+                    return responseData.content;
+                }
+                
+                // If it's an object with a text property (common in AI responses)
+                if (responseData.text) {
+                    return responseData.text;
+                }
+                
+                // For arrays, take the first element if it exists
+                if (Array.isArray(responseData) && responseData.length > 0) {
+                    return this.extractResponseText(responseData[0]);
+                }
+                
+                // Last resort - stringify the object
+                return JSON.stringify(responseData);
+            }
+
+            /**
+             * Add message to chat display
+             */
+            addMessage(text, sender, shouldScroll = true) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}-message`;
+                
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = `message-avatar ${sender === 'bot' ? 'bot-avatar' : 'user-message-avatar'}`;
+                
+                if (sender === 'bot') {
+                    const avatarImg = document.createElement('img');
+                    avatarImg.src = this.config.botAvatarMessageUrl;
+                    avatarImg.alt = `${this.config.botName} Avatar`;
+                    avatarImg.onerror = () => {
+                        avatarDiv.innerHTML = '🤖';
+                        avatarDiv.style.fontSize = '16px';
+                        avatarDiv.style.color = '#666';
+                    };
+                    avatarDiv.appendChild(avatarImg);
+                } else {
+                    const avatarImg = document.createElement('img');
+                    avatarImg.src = this.config.userAvatarUrl;
+                    avatarImg.alt = 'Your Avatar';
+                    avatarImg.style.width = '100%';
+                    avatarImg.style.height = '100%';
+                    avatarImg.style.objectFit = 'cover';
+                    
+                    avatarImg.onerror = () => {
+                        avatarDiv.innerHTML = 'U';
+                        avatarDiv.style.fontSize = '14px';
+                        avatarDiv.style.fontWeight = 'bold';
+                        avatarDiv.style.color = 'white';
+                        avatarDiv.style.display = 'flex';
+                        avatarDiv.style.alignItems = 'center';
+                        avatarDiv.style.justifyContent = 'center';
+                    };
+                    
+                    avatarDiv.appendChild(avatarImg);
+                }
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                
+                if (sender === 'bot' && this.config.enableMarkdown) {
+                    contentDiv.innerHTML = MarkdownParser.parse(text);
+                } else {
+                    contentDiv.textContent = text;
+                }
+                
+                messageDiv.appendChild(avatarDiv);
+                messageDiv.appendChild(contentDiv);
+                
+                this.elements.messagesContainer.appendChild(messageDiv);
+                
+                if (shouldScroll) {
+                    this.scrollToBottom();
+                }
+            }
+
+            /**
+             * Show typing indicator
+             */
+            showTypingIndicator() {
+                this.hideTypingIndicator();
+                this.state.isTyping = true;
+                
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'typing-indicator-message';
+                typingDiv.id = 'typing-indicator';
+                typingDiv.setAttribute('role', 'status');
+                typingDiv.setAttribute('aria-label', `${this.config.botName} is typing`);
+
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = 'message-avatar bot-avatar';
+                const avatarImg = document.createElement('img');
+                avatarImg.src = this.config.botAvatarMessageUrl;
+                avatarImg.alt = `${this.config.botName} Avatar`;
+                avatarImg.onerror = () => {
+                    avatarDiv.innerHTML = '🤖';
+                    avatarDiv.style.fontSize = '16px';
+                    avatarDiv.style.color = '#666';
+                };
+                avatarDiv.appendChild(avatarImg);
+
+                const indicatorDiv = document.createElement('div');
+                indicatorDiv.className = 'typing-indicator';
+                indicatorDiv.innerHTML = `
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                `;
+
+                typingDiv.appendChild(avatarDiv);
+                typingDiv.appendChild(indicatorDiv);
+                this.elements.messagesContainer.appendChild(typingDiv);
+                this.scrollToBottom();
+            }
+
+            /**
+             * Hide typing indicator
+             */
+            hideTypingIndicator() {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) {
+                    indicator.remove();
+                }
+                this.state.isTyping = false;
+            }
+
+            /**
+             * Show quick reply buttons (only from n8n)
+             */
+            showQuickReplies(replies) {
+                this.clearQuickReplies();
+                
+                if (!replies || !Array.isArray(replies) || replies.length === 0) {
+                    return;
+                }
+                
+                replies.forEach(reply => {
+                    const button = document.createElement('button');
+                    button.className = 'quick-reply-btn';
+                    button.textContent = reply.text || reply;
+                    button.dataset.message = reply.message || reply.text || reply;
+                    
+                    if (reply.isClose || (reply.text && reply.text.toLowerCase().includes('close'))) {
+                        button.classList.add('close-style');
+                    }
+                    
+                    this.elements.quickRepliesContainer.appendChild(button);
+                });
+                
+                this.scrollToBottom();
+            }
+
+            /**
+             * Clear quick reply buttons
+             */
+            clearQuickReplies() {
+                this.elements.quickRepliesContainer.innerHTML = '';
+            }
+
+            /**
+             * Handle file attachment for n8n
+             */
+            handleAttachment() {
+                this.handleFirstInteraction();
+                
+                const input = document.createElement('input');
+                input.type = 'file';
+                
+                if (this.config.allowedFilesMimeTypes) {
+                    input.accept = this.config.allowedFilesMimeTypes;
+                } else {
+                    input.accept = 'image/*,application/pdf,.txt,.doc,.docx';
+                }
+                
+                input.style.display = 'none';
+                
+                input.addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        try {
+                            // Convert file to base64 for n8n
+                            const base64 = await this.fileToBase64(file);
+                            this.pendingFileData = {
+                                name: file.name,
+                                type: file.type,
+                                size: file.size,
+                                data: base64
+                            };
+                            
+                            this.addMessage(`📎 Attached: ${file.name}`, 'user');
+                            this.processUserMessage(`I've attached a file: ${file.name}. Can you help me with this?`);
+                        } catch (error) {
+                            this.showErrorMessage('Failed to process file attachment.');
+                        }
+                    }
+                    document.body.removeChild(input);
+                });
+                
+                document.body.appendChild(input);
+                input.click();
+            }
+
+            /**
+             * Convert file to base64
+             */
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                });
+            }
+
+            /**
+             * Update connection status
+             */
+            updateConnectionStatus(status) {
+                const { statusDot, statusText, statusMessage } = this.elements;
+                
+                switch (status) {
+                    case 'online':
+                        statusDot.className = 'status-dot';
+                        statusText.textContent = 'Online';
+                        statusMessage.textContent = 'Online';
+                        break;
+                    case 'failed':
+                        statusDot.className = 'status-dot failed';
+                        statusText.textContent = 'Connection Failed';
+                        statusMessage.textContent = 'Failed';
+                        break;
+                    case 'connecting':
+                        statusDot.className = 'status-dot';
+                        statusText.textContent = 'Connecting';
+                        statusMessage.textContent = 'Connecting...';
+                        break;
+                }
+            }
+
+            /**
+             * Handle n8n errors with user-friendly messages
+             */
+            handleN8NError(error) {
+                this.updateConnectionStatus('failed');
+                console.error("n8n Webhook Error:", error);
+                
+                let errorMessage;
+                const errorString = error.message || '';
+                
+                if (errorString.includes('webhook URL is required')) {
+                    errorMessage = "Configuration error: n8n webhook URL is not set.";
+                } else if (errorString.includes('404')) {
+                    errorMessage = "Workflow not found. Please check your n8n webhook URL.";
+                } else if (errorString.includes('403')) {
+                    errorMessage = "Access denied. Please check your n8n CORS settings.";
+                } else if (errorString.includes('500')) {
+                    errorMessage = "n8n workflow error. Please check your workflow configuration.";
+                } else if (errorString.includes('Failed to fetch')) {
+                    errorMessage = "Network error. Please check your internet connection and n8n server status.";
+                } else {
+                    errorMessage = "I'm having trouble connecting to the AI service. Please try again.";
+                }
+                
+                this.showErrorMessage(errorMessage);
+                this.clearQuickReplies();
+                
+                // Reset status after delay
+                setTimeout(() => {
+                    this.updateConnectionStatus('online');
+                }, 5000);
+            }
+
+            /**
+             * Show error message in chat
+             */
+            showErrorMessage(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.setAttribute('role', 'alert');
+                errorDiv.innerHTML = `
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <span>${message}</span>
+                `;
+                
+                this.elements.messagesContainer.appendChild(errorDiv);
+                this.scrollToBottom();
+                
+                // Auto-remove after 10 seconds
+                setTimeout(() => {
+                    if (errorDiv.parentNode) {
+                        errorDiv.remove();
+                    }
+                }, 10000);
+            }
+
+            /**
+             * Scroll messages to bottom
+             */
+            scrollToBottom() {
+                requestAnimationFrame(() => {
+                    this.elements.messagesContainer.scrollTop = this.elements.messagesContainer.scrollHeight;
+                });
+            }
+
+            /**
+             * Clear chat UI (no session data to clear)
+             */
+            clearChat() {
+                // Generate fresh session ID
+                this.sessionId = this.generateSessionId();
+                this.state.userHasInteracted = false;
+                this.elements.messagesContainer.innerHTML = '';
+                
+                // Re-add welcome message to messages container
+                const welcomeMessage = document.createElement('div');
+                welcomeMessage.className = 'welcome-message';
+                welcomeMessage.id = 'welcome-message';
+                welcomeMessage.innerHTML = `
+                    <div class="welcome-content">
+                        <div class="welcome-avatar" id="welcome-avatar">
+                            <img id="welcome-bot-avatar" src="${this.config.botAvatarMessageUrl}" alt="" aria-hidden="true">
+                        </div>
+                        <div class="welcome-text">
+                            <button class="welcome-dismiss" id="welcome-dismiss" aria-label="Dismiss welcome message" style="display: none !important;">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                </svg>
+                            </button>
+                            <h4 id="welcome-title">${this.config.welcomeMessage.title}</h4>
+                            <p id="welcome-text-content">${this.config.welcomeMessage.text}</p>
+                        </div>
+                    </div>
+                `;
+                this.elements.messagesContainer.appendChild(welcomeMessage);
+                this.elements.welcomeMessage = welcomeMessage;
+                this.configureWelcomeMessage();
+            }
+
+            /**
+             * Public API methods for external control
+             */
+            open() { this.openChat(); }
+            close() { this.closeChat(); }
+            
+            sendCustomMessage(message, sender = 'user') {
+                if (sender === 'user') {
+                    this.handleFirstInteraction();
+                }
+                this.addMessage(message, sender);
+                if (sender === 'user') {
+                    this.processUserMessage(message);
+                }
+            }
+            
+            updateConfig(newConfig) {
+                this.config = { ...this.config, ...newConfig };
+                this.applyConfiguration();
+            }
+
+            updateWelcomeMessage(title, text) {
+                this.config.welcomeMessage.title = title;
+                this.config.welcomeMessage.text = text;
+                this.configureWelcomeMessage();
+            }
+
+            getSessionId() {
+                return this.sessionId;
+            }
+        }
+
+        // Initialize the chatbot when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            // N8N Chatbot Configuration
+            const chatbotConfig = {
+                // ===== N8N CONFIGURATION (REQUIRED) =====
+                // Replace with your actual n8n webhook URL
+                webhookUrl: 'http://localhost:5001/chat',     // e.g., 'https://yourname.app.n8n.cloud/webhook/513107b3-6f3a
+                
+                // N8N Webhook Configuration
+                webhookConfig: {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                        // Add any additional headers your n8n workflow requires
+                    }
+                },
+                
+                // N8N Chat Keys (match your workflow)
+                chatInputKey: 'chatInput',        // Key for user message in webhook payload
+                chatSessionKey: 'sessionId',      // Key for session ID in webhook payload
+                
+                // N8N Features
+                enableStreaming: false,           // Enable streaming responses (requires workflow support)
+                allowFileUploads: true,           // Allow file uploads through chat
+                allowedFilesMimeTypes: 'image/*,application/pdf,.txt,.doc,.docx', // Allowed file types
+                showDefaultQuickReplies: false,   // Only show n8n provided quick replies
+                
+                // ===== WELCOME MESSAGE CONFIGURATION =====
+                welcomeMessage: {
+                    enabled: true,                    // Enable/disable welcome message
+                    title: 'Welcome! 👋',             // Welcome message title
+                    text: 'I\'m your <span class="highlight">Samsung Assistant</span>, ready to help you with any questions or tasks. Feel free to ask me anything!', // Welcome message text (supports HTML)
+                    showOnFirstVisit: true,           // Only show on first visit
+                    dismissible: false,               // Welcome message cannot be dismissed
+                    autoHideAfterFirstMessage: false  // Welcome message stays visible
+                },
+                
+                // Metadata sent to n8n workflow (no persistent data)
+                metadata: {
+                    source: 'chatbot-widget',
+                    version: '2.0',
+                    timestamp: new Date().toISOString(),
+                    userAgent: navigator.userAgent,
+                    url: window.location.href
+                },
+
+                // ===== UI CONFIGURATION =====
+                // Basic Settings
+                botName: 'Samsung Support Bot',
+                botAvatarHeaderUrl: 'https://cdn-icons-png.flaticon.com/256/4712/4712042.png',
+                botAvatarMessageUrl: 'https://cdn-icons-png.flaticon.com/256/4712/4712042.png',
+                userAvatarUrl: 'https://cdn-icons-png.flaticon.com/256/9131/9131529.png',
+                
+                // Theme Colors
+                primaryColor: '#000080',
+                secondaryColor: '#3b82f6',
+                
+                // ===== FEATURE SETTINGS =====
+                enableAttachments: true,          // Enable attachment button
+                enableMarkdown: true,             // Parse markdown in bot responses
+                autoCloseOnOutsideClick: false,   // Auto-close chat when clicking outside
+                showTypingIndicator: true,        // Show typing indicator
+                errorRetryAttempts: 3             // Number of retry attempts on error
+            };
+            
+            // Create the chatbot instance
+            window.chatbot = new ChatBot(chatbotConfig);
+            
+            // Optional: Add global methods for external control
+            window.openChat = () => window.chatbot.open();
+            window.closeChat = () => window.chatbot.close();
+            window.clearChat = () => window.chatbot.clearChat(); // Updated method name
+            window.getChatSessionId = () => window.chatbot.getSessionId();
+            
+            // Additional welcome message control methods
+            window.updateWelcomeMessage = (title, text) => window.chatbot.updateWelcomeMessage(title, text);
+        });
+    </script>
+</body>
+</html>
