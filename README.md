@@ -1,9 +1,6 @@
-# AI-Powered Samsung Refrigerator Support Chatbot
+# AI-Powered Appliance Support Chatbot
 
 This project is a smart, interactive chatbot designed to help users troubleshoot issues with their Samsung refrigerators. It leverages modern AI and machine learning models to provide accurate, context-aware support through both text-based conversation and image analysis.
-
-![Chatbot Demo](https://placehold.co/600x400/EEE/31343C?text=Replace+with+GIF+of+your+chatbot)
----
 
 ## ✨ Features
 
