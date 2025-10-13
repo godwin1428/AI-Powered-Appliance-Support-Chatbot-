@@ -7,7 +7,7 @@ This project is a smart, interactive chatbot designed to help users troubleshoot
 * **🤖 Conversational AI:** Engage in natural, human-like conversations to diagnose problems.
 * **📚 RAG-Powered Knowledge:** Provides answers based on an official Samsung refrigerator user manual for high accuracy.
 * **📸 Image-Based Troubleshooting:** Upload a photo of a refrigerator part or error code, and the AI will identify it and provide guidance.
-* **🧠 Intelligent Model Integration:** Uses powerful models like `Mistral-7B` for generation and `BLIP` for visual question answering.
+* **🧠 Intelligent Model Integration:** Uses powerful models like `Mistral-7B` for generation and `google/gemma-3-4b-it:free` for visual question answering.
 * **⚡ Fast and Scalable:** Built with a lightweight Flask backend and vectorized storage using Pinecone for quick document retrieval.
 * **🌐 Simple Web Interface:** Easy-to-use interface for seamless user interaction.
 
@@ -27,7 +27,7 @@ When a user sends a text message, the system follows a **Retrieval-Augmented Gen
 ### 2. Image-Based Queries (VQA)
 
 When a user uploads an image:
-1.  **Image Analysis:** The image is processed by a **Visual Question Answering (VQA)** model (`Salesforce/blip-vqa-base`).
+1.  **Image Analysis:** The image is processed by a **Visual Question Answering (VQA)** model (`google/gemma-3-4b-it:free`).
 2.  **Contextual Prompting:** The model is prompted with a specific question like "What is in this image?" or "What error is shown on this display?".
 3.  **Answer Generation:** The model provides a text-based description or answer based on the visual content of the image.
 
@@ -39,7 +39,7 @@ When a user uploads an image:
 * **Frontend:** HTML, CSS, JavaScript
 * **AI/ML Models:**
     * **LLM:** `mistralai/Mistral-7B-Instruct-v0.2` (via Hugging Face)
-    * **VQA:** `Salesforce/blip-vqa-base` (via Hugging Face)
+    * **VQA:** `google/gemma-3-4b-it:free` (via OpenRouter)
     * **Embedding:** `sentence-transformers/all-MiniLM-L6-v2`
 * **Vector Database:** Pinecone
 * **PDF Processing:** LangChain, PyPDFLoader
@@ -57,7 +57,7 @@ Follow these steps to get the chatbot running locally.
 * Pip
 * An account with [Hugging Face](https://huggingface.co/)
 * An account with [Pinecone](https://www.pinecone.io/)
-* An account with [DeepAI](https://deepai.org/) (for the VQA model, or you can run it locally if you have the resources)
+* An account with [OpenRouter](https://openrouter.ai/) (for the VQA model, or you can run it locally if you have the resources)
 
 ### 1. Clone the Repository
 
@@ -95,7 +95,7 @@ Create a file named .env in the root directory of the project and add your API k
 HUGGINGFACEHUB_API_TOKEN="hf_..."
 PINECONE_API_KEY="..."
 PINECONE_ENVIRONMENT="..."
-DEEPAI_API_KEY="..."
+OPENROUTER_API_KEY="sk-....."
 ```
 
 ### 5. Ingest the Knowledge Base
