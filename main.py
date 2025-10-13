@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify, render_template
 from PIL import Image
 from huggingface_hub import InferenceClient
 import io
-import deepai
+import base64 # NEW: Import for encoding the image
 
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -19,6 +19,7 @@ load_dotenv()
 HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") # NEW: Load OpenRouter API Key
 
 # --- Global Configuration & Initialization ---
 PINECONE_INDEX_NAME = "product-manual"
@@ -49,7 +50,6 @@ vectorstore = PineconeVectorStore.from_existing_index(PINECONE_INDEX_NAME, embed
 retriever = vectorstore.as_retriever(search_kwargs={'k': 4}) # Retrieve top 4 results
 
 # --- Prompt Template for RAG ---
-# This mirrors the system prompt in your n8n AI Agent node
 prompt_template = """
 System/Context:
 You are a helpful AI assistant for troubleshooting Samsung refrigerators. Use a conversational and easy-to-understand tone. Your answers must be based *only* on the retrieved information below.
@@ -83,49 +83,106 @@ def index():
     """Serves the chatbot HTML page."""
     return render_template("sample.html")
 
-def analyze_image_with_deepai(image_bytes):
-    """Analyzes an image using the DeepAI VQA model."""
-    try:
-        # The DeepAI library needs a file path, so we write the bytes to a temporary file
-        with open("temp_image.jpg", "wb") as f:
-            f.write(image_bytes)
+# NEW: Replaced the deepai function with one for OpenRouter
+def analyze_image_with_openrouter(image_bytes):
+	"""
+	Analyzes an image using a free multimodal model via the OpenRouter API,
+	then enhances the result using RAG from product manuals for deeper troubleshooting.
+	"""
+	if not OPENROUTER_API_KEY:
+		print("--- ERROR: OPENROUTER_API_KEY not found in environment variables. ---")
+		return {"error":"Server is missing the OpenRouter API key configuration."}
 
-        # CORRECTED: Call the DeepAI VQA API with the correct function name
-        resp = deepai.call_standard_api("visual-question-answering",
-            image=open("temp_image.jpg", "rb"),
-            question="What is the primary issue visible in this refrigerator image?"
-        )
-        os.remove("temp_image.jpg") # Clean up the temporary file
+	try:
+		# Step 1: Detect image MIME type
+		image=Image.open(io.BytesIO(image_bytes))
+		image_format=image.format.lower() if image.format else 'jpeg'
+		mime_type=f"image/{image_format}"
+		print(f"--- Detected image MIME type: {mime_type} ---")
 
-        # Extract the answer
-        detected_issue = resp.get('output', 'Could not determine the issue.')
-        print(f"--- DEEPAI VQA RESPONSE ---\n{detected_issue}\n-------------------------")
+		# Step 2: Encode image
+		base64_image=base64.b64encode(image_bytes).decode('utf-8')
 
-        # Use the main LLM to format the output into the desired JSON structure
-        formatting_prompt = f'''
-        An image of a refrigerator was analyzed. The detected issue is: "{detected_issue}"
+		# Step 3: Use free vision model for base image analysis
+		vision_model="google/gemma-3-4b-it:free"
+		payload={
+			"model":vision_model,
+			"messages":[
+				{
+					"role":"user",
+					"content":[
+						{
+							"type":"text",
+							"text":"""
+								You are a refrigerator troubleshooting assistant. Analyze the following image of a refrigerator.
+								Based *only* on the visual information, generate a JSON object with the following keys:
+								- "detected_issue": A short, clear description of the problem (e.g., "Excessive frost buildup on the back wall").
+								- "possible_cause": A likely reason for this issue (e.g., "Poor air circulation or faulty defrost system.").
+								- "recommended_action": A concise, step-by-step solution for the user (e.g., "1. Check if vents are blocked. 2. Manually defrost the unit. 3. If the problem persists, contact a technician.").
 
-        Based on this, generate a JSON object with the following keys:
-        - "detected_issue": A short description of the issue.
-        - "possible_cause": A likely reason for the issue.
-        - "recommended_action": A step-by-step solution for the user.
+								If the image is unclear or shows no obvious issue, state that in the JSON.
+								Return ONLY the raw JSON object and nothing else.
+							"""
+						},
+						{
+							"type":"image_url",
+							"image_url":{"url":f"data:{mime_type};base64,{base64_image}"}
+						}
+					]
+				}
+			]
+		}
 
-        If the detected issue is unclear, state that more details are needed.
-        Return only the raw JSON object.
-        '''
+		headers={
+			"Authorization":f"Bearer {OPENROUTER_API_KEY}",
+			"Content-Type":"application/json",
+			"HTTP-Referer":"http://localhost:5001",
+			"X-Title":"Samsung Refrigerator Troubleshooter"
+		}
 
-        json_response_str = llm.invoke(formatting_prompt)
-        print(f"--- RAW LLM RESPONSE ---\n{json_response_str}\n------------------------")
+		response=requests.post("https://openrouter.ai/api/v1/chat/completions",headers=headers,json=payload,timeout=60)
+		response.raise_for_status()
 
-        json_response_dict = json.loads(json_response_str)
-        return json_response_dict
+		model_output=response.json()['choices'][0]['message']['content']
+		if model_output.strip().startswith("```json"):
+			model_output=model_output.replace("```json","").replace("```","").strip()
 
-    except Exception as e:
-        if os.path.exists("temp_image.jpg"):
-            os.remove("temp_image.jpg")
-        print(f"--- ERROR IN DEEPAI IMAGE ANALYSIS ---\nType: {type(e)}\nError: {e}\n-----------------------------")
-        return {"error": f"Failed to analyze image with DeepAI: {str(e)}"}
-    
+		print(f"--- VISION MODEL RAW OUTPUT ---\n{model_output}\n-----------------------------")
+		image_analysis=json.loads(model_output)
+
+		# Step 4: Use RAG to enrich the response
+		query_text=f"The refrigerator shows: {image_analysis.get('detected_issue','unknown issue')}. Explain the cause and steps to fix it."
+		retrieved_context="\n".join([doc.page_content for doc in retriever.get_relevant_documents(query_text)])
+		
+		# Step 5: Combine retrieved manual data with vision findings
+		final_prompt=f"""
+		System Context:
+		You are a Samsung refrigerator troubleshooting assistant.
+		Image Analysis Result:
+		{json.dumps(image_analysis,indent=2)}
+		Retrieved Manual Information:
+		{retrieved_context}
+		
+		Instruction:
+		Using the retrieved manual data, expand the recommended_action section into a clear step-by-step troubleshooting guide.
+		If possible, mention which components might need checking or servicing.
+		"""
+
+		rag_response=llm.invoke(final_prompt)
+		return {"image_analysis":image_analysis,"rag_output":rag_response.content}
+
+	except requests.exceptions.HTTPError as e:
+		error_text=e.response.text if e.response else str(e)
+		print(f"--- HTTP ERROR ---\n{e}\nResponse Body: {error_text}\n-----------------------------")
+		return {"error":f"API request failed: {error_text}"}
+	except json.JSONDecodeError:
+		print("--- ERROR: Invalid JSON from Vision Model ---")
+		return {"error":"Model returned invalid JSON. Please retry."}
+	except Exception as e:
+		print(f"--- UNEXPECTED ERROR ---\nType: {type(e)}\nError: {e}\n-----------------------------")
+		return {"error":f"An unexpected error occurred: {str(e)}"}
+
+
 @app.route("/chat", methods=["POST"])
 def chat_handler():
     """
@@ -135,7 +192,8 @@ def chat_handler():
         # --- Handle Image/File Query ---
         file = request.files['file']
         img_bytes = file.read()
-        response_data = analyze_image_with_deepai(img_bytes)
+        # MODIFIED: Call the new OpenRouter function
+        response_data = analyze_image_with_openrouter(img_bytes)
         return jsonify(response_data)
 
     else:
